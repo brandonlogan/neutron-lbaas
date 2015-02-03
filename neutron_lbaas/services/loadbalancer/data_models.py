@@ -51,7 +51,7 @@ class BaseDataModel(object):
                         # if (_from_id and hasattr(item, 'id') and
                         #             item.id == _from_id):
                         #     continue
-                        ret[attr] = item.to_dict()
+                        ret[attr].append(item.to_dict())
                     else:
                         ret[attr] = item
             elif isinstance(getattr(self, attr), BaseDataModel):
@@ -64,6 +64,11 @@ class BaseDataModel(object):
 
     def to_api_dict(self, **kwargs):
         return {}
+
+    @classmethod
+    def from_dict(cls, model_dict):
+        raise NotImplementedError
+
 
     @classmethod
     def from_sqlalchemy_model(cls, sa_model, calling_class=None):
@@ -123,6 +128,10 @@ class IPAllocation(BaseDataModel):
         self.subnet_id = subnet_id
         self.network_id = network_id
 
+    @classmethod
+    def from_dict(cls, model_dict):
+        return IPAllocation(**model_dict)
+
 
 class Port(BaseDataModel):
 
@@ -140,12 +149,23 @@ class Port(BaseDataModel):
         self.device_owner = device_owner
         self.fixed_ips = fixed_ips or []
 
+    @classmethod
+    def from_dict(cls, model_dict):
+        fixed_ips = model_dict.pop('fixed_ips', [])
+        model_dict['fixed_ips'] = [IPAllocation.from_dict(fixed_ip)
+                                   for fixed_ip in fixed_ips]
+        return Port(**model_dict)
+
 
 class ProviderResourceAssociation(BaseDataModel):
 
     def __init__(self, provider_name=None, resource_id=None):
         self.provider_name = provider_name
         self.resource_id = resource_id
+
+    @classmethod
+    def from_dict(cls, model_dict):
+        return ProviderResourceAssociation(**model_dict)
 
 
 class SessionPersistence(BaseDataModel):
@@ -316,6 +336,10 @@ class Listener(BaseDataModel):
             ret_dict['loadbalancers'].append({'id': self.loadbalancer.id})
         return ret_dict
 
+    @classmethod
+    def from_dict(cls, model_dict):
+        pass
+
 
 class LoadBalancer(BaseDataModel):
 
@@ -350,6 +374,21 @@ class LoadBalancer(BaseDataModel):
         if self.provider:
             ret_dict['provider'] = self.provider.provider_name
         return ret_dict
+
+    @classmethod
+    def from_dict(cls, model_dict):
+        listeners = model_dict.pop('listeners', [])
+        vip_port = model_dict.pop('vip_port', None)
+        provider = model_dict.pop('provider', None)
+        model_dict.pop('stats', None)
+        model_dict['listeners'] = [Listener.from_dict(listener)
+                                   for listener in listeners]
+        if vip_port:
+            model_dict['vip_port'] = Port.from_dict(vip_port)
+        if provider:
+            model_dict['provider'] = ProviderResourceAssociation.from_dict(
+                provider)
+        return LoadBalancer(**model_dict)
 
 
 SA_MODEL_TO_DATA_MODEL_MAP = {

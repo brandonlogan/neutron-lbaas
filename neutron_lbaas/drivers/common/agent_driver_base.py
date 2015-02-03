@@ -63,7 +63,7 @@ class LoadBalancerAgentApi(object):
     #
 
     def __init__(self, topic):
-        target = messaging.Target(topic=topic, version='2.0')
+        target = messaging.Target(topic=topic, version='1.0')
         self.client = n_rpc.get_client(target,
                                        serializer=DataModelSerializer())
 
