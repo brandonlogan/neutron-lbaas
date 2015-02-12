@@ -28,9 +28,11 @@ from oslo_utils import excutils
 from neutron_lbaas.db.loadbalancer import loadbalancer_db as ldb
 from neutron_lbaas.db.loadbalancer import loadbalancer_dbv2 as ldbv2
 from neutron_lbaas.db.loadbalancer import models
+from neutron_lbaas.extensions import lbaas_agentschedulerv2
 from neutron_lbaas.extensions import loadbalancer as lb_ext
 from neutron_lbaas.extensions import loadbalancerv2
 from neutron_lbaas.services.loadbalancer import agent_scheduler
+from neutron_lbaas.services.loadbalancer import agent_scheduler_v2
 from neutron_lbaas.services.loadbalancer import constants as lb_const
 
 LOG = logging.getLogger(__name__)
@@ -356,8 +358,7 @@ class LoadBalancerPlugin(ldb.LoadBalancerPluginDb,
                 provider=provider, service_type=constants.LOADBALANCER)
 
 
-class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2,
-                           agent_scheduler.LbaasAgentSchedulerDbMixin):
+class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2):
     """Implementation of the Neutron Loadbalancer Service Plugin.
 
     This class manages the workflow of LBaaS request/response.
@@ -365,13 +366,11 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2,
     loadbalancer_db.LoadBalancerPluginDb.
     """
     supported_extension_aliases = ["lbaasv2",
-                                   "lbaas_agent_scheduler",
+                                   "lbaas_agent_schedulerv2",
                                    "service-type"]
 
-    # lbaas agent notifiers to handle agent update operations;
-    # can be updated by plugin drivers while loading;
-    # will be extracted by neutron manager when loading service plugins;
-    agent_notifiers = {}
+    agent_notifiers = (
+        agent_scheduler_v2.LbaasAgentSchedulerDbMixin.agent_notifiers)
 
     def __init__(self):
         """Initialization for the loadbalancer service plugin."""
@@ -455,6 +454,10 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2,
                 driver_method(context, old_db_entity, db_entity)
             else:
                 driver_method(context, db_entity)
+        # catching and reraising agent issues
+        except (lbaas_agentschedulerv2.NoEligibleLbaasAgent,
+                lbaas_agentschedulerv2.NoActiveLbaasAgent) as no_agent:
+            raise no_agent
         except Exception:
             LOG.exception(_LE("There was an error in the driver"))
             self._handle_driver_error(context, db_entity)
