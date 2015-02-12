@@ -33,6 +33,40 @@ from sqlalchemy.orm import collections
 from neutron_lbaas.db.loadbalancer import models
 
 
+def build_dict(loadbalancer):
+    """Build full tree dict with given load balancer model."""
+    # TODO(ptoohill): refactor or remove...
+    retval = {'loadbalancer': loadbalancer.to_dict()}
+    listeners = []
+    for listener in loadbalancer.listeners:
+        ldict = {}
+        members = []
+        pool = listener.default_pool
+        for m in pool.members:
+            members.append(m.to_dict())
+        ldict['listener'] = listener.to_dict()
+        ldict['listener']['default_pool'] = listener.default_pool.to_dict()
+        if listener.default_pool.healthmonitor:
+            ldict['listener'][
+                'default_pool'
+            ]['health_monitor'] = listener.default_pool.healthmonitor.to_dict()
+        ldict['listener']['default_pool']['members'] = members
+        listeners.append(ldict)
+
+    retval['loadbalancer']['listeners'] = listeners
+    if loadbalancer.vip_port:
+        retval['loadbalancer']['vip_port'] = loadbalancer.vip_port.to_dict()
+        fdict = {}
+        fixed_ips = []
+        for fip in loadbalancer.vip_port.fixed_ips:
+            fdict['fixed_ip'] = fip.to_dict()
+            fixed_ips.append(fip.to_dict())
+        retval['loadbalancer']['vip_port']['fixed_ips'] = fixed_ips
+
+    retval['loadbalancer']['provider'] = None
+    return retval
+
+
 class BaseDataModel(object):
 
     # NOTE(brandon-logan) This does not discover dicts for relationship
@@ -43,7 +77,10 @@ class BaseDataModel(object):
             if (attr.startswith('_') or
                     isinstance(getattr(self, attr), BaseDataModel)):
                 continue
-            ret[attr] = self.__dict__[attr]
+            if isinstance(self.__dict__[attr], unicode):
+                ret[attr.encode('utf8')] = self.__dict__[attr].encode('utf8')
+            else:
+                ret[attr] = self.__dict__[attr]
         return ret
 
     @classmethod

@@ -24,9 +24,9 @@ from oslo_utils import uuidutils
 from sqlalchemy import orm
 from sqlalchemy.orm import exc
 
+from neutron_lbaas import agent_scheduler
 from neutron_lbaas.db.loadbalancer import models
 from neutron_lbaas.extensions import loadbalancerv2
-from neutron_lbaas.services.loadbalancer import agent_scheduler_v2
 from neutron_lbaas.services.loadbalancer import constants as lb_const
 from neutron_lbaas.services.loadbalancer import data_models
 
@@ -35,7 +35,7 @@ LOG = logging.getLogger(__name__)
 
 
 class LoadBalancerPluginDbv2(base_db.CommonDbMixin,
-                             agent_scheduler_v2.LbaasAgentSchedulerDbMixin):
+                             agent_scheduler.LbaasAgentSchedulerDbMixin):
     """Wraps loadbalancer with SQLAlchemy models.
 
     A class that wraps the implementation of the Neutron loadbalancer

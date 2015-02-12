@@ -25,6 +25,7 @@ from neutron.services import service_base
 from oslo_config import cfg
 from oslo_utils import excutils
 
+from neutron_lbaas import agent_scheduler as agent_scheduler_v2
 from neutron_lbaas.db.loadbalancer import loadbalancer_db as ldb
 from neutron_lbaas.db.loadbalancer import loadbalancer_dbv2 as ldbv2
 from neutron_lbaas.db.loadbalancer import models
@@ -32,7 +33,6 @@ from neutron_lbaas.extensions import lbaas_agentschedulerv2
 from neutron_lbaas.extensions import loadbalancer as lb_ext
 from neutron_lbaas.extensions import loadbalancerv2
 from neutron_lbaas.services.loadbalancer import agent_scheduler
-from neutron_lbaas.services.loadbalancer import agent_scheduler_v2
 from neutron_lbaas.services.loadbalancer import constants as lb_const
 
 LOG = logging.getLogger(__name__)

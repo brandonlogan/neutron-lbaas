@@ -326,7 +326,7 @@ class LbaasPluginDbTestCase(LbaasTestMixin, base.NeutronDbPluginV2TestCase):
             self.ext_api = extensions.ExtensionMiddleware(app, ext_mgr=ext_mgr)
 
         get_lbaas_agent_patcher = mock.patch(
-            'neutron_lbaas.services.loadbalancer.agent_scheduler_v2'
+            'neutron_lbaas.agent_scheduler'
             '.LbaasAgentSchedulerDbMixin.get_agent_hosting_loadbalancer')
         mock_lbaas_agent = mock.MagicMock()
         get_lbaas_agent_patcher.start().return_value = mock_lbaas_agent
