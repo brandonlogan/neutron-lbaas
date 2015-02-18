@@ -150,19 +150,18 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
 
     def sync_state(self):
         known_instances = set(self.instance_mapping.keys())
-        # try:
-        #     ready_instances = set(self.plugin_rpc.get_ready_devices())
-        #
-        #     for deleted_id in known_instances - ready_instances:
-        #         self._destroy_loadbalancer(deleted_id)
-        #
-        #     TODO(blogan): re-enable when _reload_loadbalancer is ready
-        #     for loadbalancer_id in ready_instances:
-        #         self._reload_loadbalancer(loadbalancer_id)
-        #
-        # except Exception:
-        #     LOG.exception(_LE('Unable to retrieve ready devices'))
-        #     self.needs_resync = True
+        try:
+            ready_instances = set(self.plugin_rpc.get_ready_devices())
+
+            for deleted_id in known_instances - ready_instances:
+                self._destroy_loadbalancer(deleted_id)
+
+            for loadbalancer_id in ready_instances:
+                self._reload_loadbalancer(loadbalancer_id)
+
+        except Exception:
+            LOG.exception(_LE('Unable to retrieve ready devices'))
+            self.needs_resync = True
 
         self.remove_orphans()
 
@@ -175,16 +174,17 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
 
     def _reload_loadbalancer(self, loadbalancer_id):
         try:
-            # TODO(blogan): add a get_loadbalancer to agent callbacks
-            logical_config = self.plugin_rpc.get_logical_device(loadbalancer_id)
-            driver_name = logical_config['driver']
+            loadbalancer = self.plugin_rpc.get_load_balancer(loadbalancer_id)
+            # TODO(ptoohill): Add pluginrpc to get device driver
+            driver_name = self.plugin_rpc.get_device_driver(
+                loadbalancer.provider)
             if driver_name not in self.device_drivers:
                 LOG.error(_LE('No device driver on agent: %s.'), driver_name)
                 self.plugin_rpc.update_status(
                     'loadbalancer', loadbalancer_id, constants.ERROR)
                 return
 
-            self.device_drivers[driver_name].deploy_instance(logical_config)
+            self.device_drivers[driver_name].deploy_instance(loadbalancer)
             self.instance_mapping[loadbalancer_id] = driver_name
             self.plugin_rpc.loadbalancer_deployed(loadbalancer_id)
         except Exception:

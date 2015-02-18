@@ -434,8 +434,11 @@ class LoadBalancer(BaseDataModel):
         if vip_port:
             model_dict['vip_port'] = Port.from_dict(vip_port)
         if provider:
+            mprovider = {}
+            mprovider['provider_name'] = provider.encode('utf8')
+            mprovider['resource_id'] = model_dict['id']
             model_dict['provider'] = ProviderResourceAssociation.from_dict(
-                provider)
+                mprovider)
         return LoadBalancer(**model_dict)
 
 

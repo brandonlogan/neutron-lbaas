@@ -23,8 +23,10 @@ from neutron.tests.unit import testlib_api
 from six import moves
 
 from neutron_lbaas.db.loadbalancer import loadbalancer_dbv2 as ldb
+from neutron_lbaas.db.loadbalancer import models as db_models
 from neutron_lbaas.drivers.common import agent_callbacks
 from neutron_lbaas.extensions import loadbalancerv2
+from neutron_lbaas.services.loadbalancer import data_models
 from neutron_lbaas.tests.unit.drivers.common import test_agent_driver_base
 
 
@@ -131,6 +133,25 @@ class TestLoadBalancerCallbacks(
                 )
                 self.assertEqual([loadbalancer['loadbalancer']['id']],
                                  ready)
+
+    def test_get_load_balancer_active(self):
+        with self.loadbalancer() as loadbalancer:
+            ctx = context.get_admin_context()
+            # activate objects
+            self.plugin_instance.db.update_status(
+                ctx, db_models.LoadBalancer,
+                loadbalancer['loadbalancer']['id'], 'ACTIVE')
+
+            lb = self.plugin_instance.db.get_loadbalancer(
+                ctx, loadbalancer['loadbalancer']['id']
+            )
+
+            load_balancer = self.callbacks.get_load_balancer(
+                ctx, loadbalancer['loadbalancer']['id']
+            )
+
+            self.assertEqual(data_models.LoadBalancer.from_sqlalchemy_model(
+                lb).to_dict(), load_balancer.to_dict())
 
     def _update_port_test_helper(self, expected, func, **kwargs):
         core = self.plugin_instance.db._core_plugin

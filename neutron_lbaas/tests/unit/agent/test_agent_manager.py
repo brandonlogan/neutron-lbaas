@@ -1,4 +1,5 @@
 # Copyright 2013 New Dream Network, LLC (DreamHost)
+# Copyright 2015 Rackspace
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -18,6 +19,7 @@ import mock
 from neutron.plugins.common import constants
 
 from neutron_lbaas.agent import agent_manager as manager
+from neutron_lbaas.services.loadbalancer import data_models
 from neutron_lbaas.tests import base
 
 
@@ -31,7 +33,7 @@ class TestManager(base.BaseTestCase):
         self.mock_importer = mock.patch.object(manager, 'importutils').start()
 
         rpc_mock_cls = mock.patch(
-            'neutron_lbaas.services.loadbalancer.agent.agent_api.LbaasAgentApi'
+            'neutron_lbaas.agent.agent_api.LbaasAgentApi'
         ).start()
 
         # disable setting up periodic state reporting
@@ -64,7 +66,7 @@ class TestManager(base.BaseTestCase):
 
     def test_collect_stats(self):
         self.mgr.collect_stats(mock.Mock())
-        self.rpc_mock.update_pool_stats.assert_has_calls([
+        self.rpc_mock.update_loadbalancer_stats.assert_has_calls([
             mock.call('1', mock.ANY),
             mock.call('2', mock.ANY)
         ], any_order=True)
@@ -80,8 +82,8 @@ class TestManager(base.BaseTestCase):
 
     def _sync_state_helper(self, ready, reloaded, destroyed):
         with contextlib.nested(
-            mock.patch.object(self.mgr, '_reload_pool'),
-            mock.patch.object(self.mgr, '_destroy_pool')
+            mock.patch.object(self.mgr, '_reload_loadbalancer'),
+            mock.patch.object(self.mgr, '_destroy_loadbalancer')
         ) as (reload, destroy):
 
             self.rpc_mock.get_ready_devices.return_value = ready
@@ -119,69 +121,72 @@ class TestManager(base.BaseTestCase):
         self.assertTrue(self.log.exception.called)
         self.assertTrue(self.mgr.needs_resync)
 
-    def test_reload_pool(self):
-        config = {'driver': 'devdriver'}
-        self.rpc_mock.get_logical_device.return_value = config
-        pool_id = 'new_id'
-        self.assertNotIn(pool_id, self.mgr.instance_mapping)
+    def test_reload_loadbalancer(self):
+        lb = data_models.LoadBalancer(id='1')
+        self.rpc_mock.get_load_balancer.return_value = lb
+        self.rpc_mock.get_device_driver.return_value = 'devdriver'
+        lb_id = 'new_id'
+        self.assertNotIn(lb_id, self.mgr.instance_mapping)
 
-        self.mgr._reload_pool(pool_id)
+        self.mgr._reload_loadbalancer(lb_id)
 
-        self.driver_mock.deploy_instance.assert_called_once_with(config)
-        self.assertIn(pool_id, self.mgr.instance_mapping)
-        self.rpc_mock.pool_deployed.assert_called_once_with(pool_id)
+        self.driver_mock.deploy_instance.assert_called_once_with(lb)
+        self.assertIn(lb.id, self.mgr.instance_mapping)
+        self.rpc_mock.loadbalancer_deployed.assert_called_once_with(lb_id)
 
-    def test_reload_pool_driver_not_found(self):
-        config = {'driver': 'unknown_driver'}
-        self.rpc_mock.get_logical_device.return_value = config
-        pool_id = 'new_id'
-        self.assertNotIn(pool_id, self.mgr.instance_mapping)
+    def test_reload_loadbalancer_driver_not_found(self):
+        lb = data_models.LoadBalancer(id='1')
+        self.rpc_mock.get_load_balancer.return_value = lb
+        self.rpc_mock.get_device_driver.return_value = 'unknown_driver'
+        lb_id = 'new_id'
+        self.assertNotIn(lb_id, self.mgr.instance_mapping)
 
-        self.mgr._reload_pool(pool_id)
+        self.mgr._reload_loadbalancer(lb_id)
 
         self.assertTrue(self.log.error.called)
         self.assertFalse(self.driver_mock.deploy_instance.called)
-        self.assertNotIn(pool_id, self.mgr.instance_mapping)
-        self.assertFalse(self.rpc_mock.pool_deployed.called)
+        self.assertNotIn(lb_id, self.mgr.instance_mapping)
+        self.assertFalse(self.rpc_mock.loadbalancer_deployed.called)
 
-    def test_reload_pool_exception_on_driver(self):
-        config = {'driver': 'devdriver'}
-        self.rpc_mock.get_logical_device.return_value = config
+    def test_reload_loadbalancer_exception_on_driver(self):
+        lb = data_models.LoadBalancer(id='1')
+        self.rpc_mock.get_load_balancer.return_value = lb
+        self.rpc_mock.get_device_driver.return_value = 'devdriver'
         self.driver_mock.deploy_instance.side_effect = Exception
-        pool_id = 'new_id'
-        self.assertNotIn(pool_id, self.mgr.instance_mapping)
+        lb_id = 'new_id'
+        self.assertNotIn(lb_id, self.mgr.instance_mapping)
 
-        self.mgr._reload_pool(pool_id)
+        self.mgr._reload_loadbalancer(lb_id)
 
-        self.driver_mock.deploy_instance.assert_called_once_with(config)
-        self.assertNotIn(pool_id, self.mgr.instance_mapping)
-        self.assertFalse(self.rpc_mock.pool_deployed.called)
+        self.driver_mock.deploy_instance.assert_called_once_with(lb)
+        self.assertNotIn(lb_id, self.mgr.instance_mapping)
+        self.assertFalse(self.rpc_mock.loadbalancer_deployed.called)
         self.assertTrue(self.log.exception.called)
         self.assertTrue(self.mgr.needs_resync)
 
-    def test_destroy_pool(self):
-        pool_id = '1'
-        self.assertIn(pool_id, self.mgr.instance_mapping)
+    def test_destroy_loadbalancer(self):
+        lb_id = '1'
+        self.assertIn(lb_id, self.mgr.instance_mapping)
 
-        self.mgr._destroy_pool(pool_id)
+        self.mgr._destroy_loadbalancer(lb_id)
 
         self.driver_mock.undeploy_instance.assert_called_once_with(
-            pool_id, delete_namespace=True)
-        self.assertNotIn(pool_id, self.mgr.instance_mapping)
-        self.rpc_mock.pool_destroyed.assert_called_once_with(pool_id)
+            lb_id, delete_namespace=True)
+        self.assertNotIn(lb_id, self.mgr.instance_mapping)
+        self.rpc_mock.loadbalancer_destroyed.assert_called_once_with(lb_id)
         self.assertFalse(self.mgr.needs_resync)
 
-    def test_destroy_pool_exception_on_driver(self):
-        pool_id = '1'
-        self.assertIn(pool_id, self.mgr.instance_mapping)
+    def test_destroy_loadbalancer_exception_on_driver(self):
+        lb_id = '1'
+        self.assertIn(lb_id, self.mgr.instance_mapping)
         self.driver_mock.undeploy_instance.side_effect = Exception
 
-        self.mgr._destroy_pool(pool_id)
+        self.mgr._destroy_loadbalancer(lb_id)
 
         self.driver_mock.undeploy_instance.assert_called_once_with(
-            pool_id, delete_namespace=True)
-        self.assertIn(pool_id, self.mgr.instance_mapping)
-        self.assertFalse(self.rpc_mock.pool_destroyed.called)
+            lb_id, delete_namespace=True)
+        self.assertIn(lb_id, self.mgr.instance_mapping)
+        self.assertFalse(self.rpc_mock.loadbalancer_destroyed.called)
         self.assertTrue(self.log.exception.called)
         self.assertTrue(self.mgr.needs_resync)
 
@@ -194,177 +199,6 @@ class TestManager(base.BaseTestCase):
         orphans = {'1': "Fake", '2': "Fake"}
         self.driver_mock.remove_orphans.assert_called_once_with(orphans.keys())
 
-    def test_create_vip(self):
-        vip = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.create_vip(mock.Mock(), vip)
-        self.driver_mock.create_vip.assert_called_once_with(vip)
-        self.rpc_mock.update_status.assert_called_once_with('vip', vip['id'],
-                                                            constants.ACTIVE)
-
-    def test_create_vip_failed(self):
-        vip = {'id': 'id1', 'pool_id': '1'}
-        self.driver_mock.create_vip.side_effect = Exception
-        self.mgr.create_vip(mock.Mock(), vip)
-        self.driver_mock.create_vip.assert_called_once_with(vip)
-        self.rpc_mock.update_status.assert_called_once_with('vip', vip['id'],
-                                                            constants.ERROR)
-
-    def test_update_vip(self):
-        old_vip = {'id': 'id1'}
-        vip = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.update_vip(mock.Mock(), old_vip, vip)
-        self.driver_mock.update_vip.assert_called_once_with(old_vip, vip)
-        self.rpc_mock.update_status.assert_called_once_with('vip', vip['id'],
-                                                            constants.ACTIVE)
-
-    def test_update_vip_failed(self):
-        old_vip = {'id': 'id1'}
-        vip = {'id': 'id1', 'pool_id': '1'}
-        self.driver_mock.update_vip.side_effect = Exception
-        self.mgr.update_vip(mock.Mock(), old_vip, vip)
-        self.driver_mock.update_vip.assert_called_once_with(old_vip, vip)
-        self.rpc_mock.update_status.assert_called_once_with('vip', vip['id'],
-                                                            constants.ERROR)
-
-    def test_delete_vip(self):
-        vip = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.delete_vip(mock.Mock(), vip)
-        self.driver_mock.delete_vip.assert_called_once_with(vip)
-
-    def test_create_pool(self):
-        pool = {'id': 'id1'}
-        self.assertNotIn(pool['id'], self.mgr.instance_mapping)
-        self.mgr.create_pool(mock.Mock(), pool, 'devdriver')
-        self.driver_mock.create_pool.assert_called_once_with(pool)
-        self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
-                                                            constants.ACTIVE)
-        self.assertIn(pool['id'], self.mgr.instance_mapping)
-
-    def test_create_pool_failed(self):
-        pool = {'id': 'id1'}
-        self.assertNotIn(pool['id'], self.mgr.instance_mapping)
-        self.driver_mock.create_pool.side_effect = Exception
-        self.mgr.create_pool(mock.Mock(), pool, 'devdriver')
-        self.driver_mock.create_pool.assert_called_once_with(pool)
-        self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
-                                                            constants.ERROR)
-        self.assertNotIn(pool['id'], self.mgr.instance_mapping)
-
-    def test_update_pool(self):
-        old_pool = {'id': '1'}
-        pool = {'id': '1'}
-        self.mgr.update_pool(mock.Mock(), old_pool, pool)
-        self.driver_mock.update_pool.assert_called_once_with(old_pool, pool)
-        self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
-                                                            constants.ACTIVE)
-
-    def test_update_pool_failed(self):
-        old_pool = {'id': '1'}
-        pool = {'id': '1'}
-        self.driver_mock.update_pool.side_effect = Exception
-        self.mgr.update_pool(mock.Mock(), old_pool, pool)
-        self.driver_mock.update_pool.assert_called_once_with(old_pool, pool)
-        self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
-                                                            constants.ERROR)
-
-    def test_delete_pool(self):
-        pool = {'id': '1'}
-        self.assertIn(pool['id'], self.mgr.instance_mapping)
-        self.mgr.delete_pool(mock.Mock(), pool)
-        self.driver_mock.delete_pool.assert_called_once_with(pool)
-        self.assertNotIn(pool['id'], self.mgr.instance_mapping)
-
-    def test_create_member(self):
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.create_member(mock.Mock(), member)
-        self.driver_mock.create_member.assert_called_once_with(member)
-        self.rpc_mock.update_status.assert_called_once_with('member',
-                                                            member['id'],
-                                                            constants.ACTIVE)
-
-    def test_create_member_failed(self):
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.driver_mock.create_member.side_effect = Exception
-        self.mgr.create_member(mock.Mock(), member)
-        self.driver_mock.create_member.assert_called_once_with(member)
-        self.rpc_mock.update_status.assert_called_once_with('member',
-                                                            member['id'],
-                                                            constants.ERROR)
-
-    def test_update_member(self):
-        old_member = {'id': 'id1'}
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.update_member(mock.Mock(), old_member, member)
-        self.driver_mock.update_member.assert_called_once_with(old_member,
-                                                               member)
-        self.rpc_mock.update_status.assert_called_once_with('member',
-                                                            member['id'],
-                                                            constants.ACTIVE)
-
-    def test_update_member_failed(self):
-        old_member = {'id': 'id1'}
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.driver_mock.update_member.side_effect = Exception
-        self.mgr.update_member(mock.Mock(), old_member, member)
-        self.driver_mock.update_member.assert_called_once_with(old_member,
-                                                               member)
-        self.rpc_mock.update_status.assert_called_once_with('member',
-                                                            member['id'],
-                                                            constants.ERROR)
-
-    def test_delete_member(self):
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.delete_member(mock.Mock(), member)
-        self.driver_mock.delete_member.assert_called_once_with(member)
-
-    def test_create_monitor(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.mgr.create_pool_health_monitor(mock.Mock(), monitor, '1')
-        self.driver_mock.create_pool_health_monitor.assert_called_once_with(
-            monitor, '1')
-        self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
-                                                            constants.ACTIVE)
-
-    def test_create_monitor_failed(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.driver_mock.create_pool_health_monitor.side_effect = Exception
-        self.mgr.create_pool_health_monitor(mock.Mock(), monitor, '1')
-        self.driver_mock.create_pool_health_monitor.assert_called_once_with(
-            monitor, '1')
-        self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
-                                                            constants.ERROR)
-
-    def test_update_monitor(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.mgr.update_pool_health_monitor(mock.Mock(), monitor, monitor, '1')
-        self.driver_mock.update_pool_health_monitor.assert_called_once_with(
-            monitor, monitor, '1')
-        self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
-                                                            constants.ACTIVE)
-
-    def test_update_monitor_failed(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.driver_mock.update_pool_health_monitor.side_effect = Exception
-        self.mgr.update_pool_health_monitor(mock.Mock(), monitor, monitor, '1')
-        self.driver_mock.update_pool_health_monitor.assert_called_once_with(
-            monitor, monitor, '1')
-        self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
-                                                            constants.ERROR)
-
-    def test_delete_monitor(self):
-        monitor = {'id': 'id1'}
-        self.mgr.delete_pool_health_monitor(mock.Mock(), monitor, '1')
-        self.driver_mock.delete_pool_health_monitor.assert_called_once_with(
-            monitor, '1')
-
     def test_agent_disabled(self):
         payload = {'admin_state_up': False}
         self.mgr.agent_updated(mock.Mock(), payload)
@@ -373,3 +207,280 @@ class TestManager(base.BaseTestCase):
              mock.call('2', delete_namespace=True)],
             any_order=True
         )
+
+    def test_create_loadbalancer(self):
+        with mock.patch.object(data_models.LoadBalancer, 'from_dict') as mlb:
+
+            loadbalancer = data_models.LoadBalancer(id='1')
+
+            self.assertIn(loadbalancer.id, self.mgr.instance_mapping)
+            mlb.return_value = loadbalancer
+            self.mgr.create_loadbalancer(mock.Mock(), loadbalancer.to_dict(),
+                                         'devdriver')
+            self.driver_mock.load_balancer.create.assert_called_once_with(
+                loadbalancer)
+            self.rpc_mock.update_status.assert_called_once_with(
+                'loadbalancer', loadbalancer.id, constants.ACTIVE)
+
+    def test_create_loadbalancer_failed(self):
+        with mock.patch.object(data_models.LoadBalancer, 'from_dict') as mlb:
+
+            loadbalancer = data_models.LoadBalancer(id='1')
+
+            self.assertIn(loadbalancer.id, self.mgr.instance_mapping)
+            self.driver_mock.create_listener.side_effect = Exception
+            mlb.return_value = loadbalancer
+            self.mgr.create_loadbalancer(mock.Mock(), loadbalancer.to_dict(),
+                                         'devdriver')
+            self.driver_mock.load_balancer.create.assert_called_once_with(
+                loadbalancer)
+            self.rpc_mock.update_status.assert_called_once_with(
+                'loadbalancer', loadbalancer.id, constants.ACTIVE)
+
+    def test_update_loadbalancer(self):
+        with mock.patch.object(data_models.LoadBalancer, 'from_dict'):
+
+            loadbalancer = data_models.LoadBalancer(id='1',
+                                                    vip_address='10.0.0.1')
+            old_loadbalancer = data_models.LoadBalancer(id='1',
+                                                        vip_address='10.0.0.2')
+
+        self.mgr.update_loadbalancer(mock.Mock(), old_loadbalancer,
+                                     loadbalancer)
+        self.driver_mock.load_balancer.update.assert_called_once_with(
+            old_loadbalancer, loadbalancer)
+        self.rpc_mock.update_status.assert_called_once_with('loadbalancer',
+                                                            loadbalancer.id,
+                                                            constants.ACTIVE)
+
+    def test_update_loadbalancer_failed(self):
+        with mock.patch.object(data_models.LoadBalancer, 'from_dict'):
+
+            loadbalancer = data_models.LoadBalancer(id='1',
+                                                    vip_address='10.0.0.1')
+            old_loadbalancer = data_models.LoadBalancer(id='1',
+                                                        vip_address='10.0.0.2')
+
+        self.driver_mock.load_balancer.update.side_effect = Exception
+        self.mgr.update_loadbalancer(mock.Mock(), old_loadbalancer,
+                                     loadbalancer)
+        self.driver_mock.load_balancer.update.assert_called_once_with(
+            old_loadbalancer, loadbalancer)
+        self.rpc_mock.update_status.assert_called_once_with('loadbalancer',
+                                                            loadbalancer.id,
+                                                            constants.ERROR)
+
+    def test_delete_loadbalancer(self):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        self.mgr.delete_loadbalancer(mock.Mock(), loadbalancer)
+        self.driver_mock.load_balancer.delete.assert_called_once_with(
+            loadbalancer)
+
+    def test_create_listener(self):
+        with mock.patch.object(data_models.Listener, 'from_dict') as mlistener:
+
+            loadbalancer = data_models.LoadBalancer(id='1')
+            listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer)
+
+            self.assertIn(loadbalancer.id, self.mgr.instance_mapping)
+            mlistener.return_value = listener
+            self.mgr.create_listener(mock.Mock(), listener.to_dict())
+            self.driver_mock.listener.create.assert_called_once_with(listener)
+            self.rpc_mock.update_status.assert_called_once_with(
+                'listener', listener.id, constants.ACTIVE)
+
+    def test_create_listener_failed(self):
+        with mock.patch.object(data_models.Listener, 'from_dict') as mlistener:
+
+            loadbalancer = data_models.LoadBalancer(id='1')
+            listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer)
+
+            self.assertIn(loadbalancer.id, self.mgr.instance_mapping)
+            self.driver_mock.create_listener.side_effect = Exception
+            mlistener.return_value = listener
+            self.mgr.create_listener(mock.Mock(), listener.to_dict())
+            self.driver_mock.listener.create.assert_called_once_with(listener)
+            self.rpc_mock.update_status.assert_called_once_with(
+                'listener', listener.id, constants.ACTIVE)
+
+    def test_update_listener(self):
+        with mock.patch.object(data_models.Listener, 'from_dict'):
+
+            loadbalancer = data_models.LoadBalancer(id='1')
+            old_listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer,
+                                            protocol_port=80)
+            listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer,
+                                            protocol_port=81)
+
+        self.mgr.update_listener(mock.Mock(), old_listener, listener)
+        self.driver_mock.listener.update.assert_called_once_with(old_listener,
+                                                                 listener)
+        self.rpc_mock.update_status.assert_called_once_with('listener',
+                                                            listener.id,
+                                                            constants.ACTIVE)
+
+    def test_update_listener_failed(self):
+        with mock.patch.object(data_models.Listener, 'from_dict'):
+
+            loadbalancer = data_models.LoadBalancer(id='1')
+            old_listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer,
+                                            protocol_port=80)
+            listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer,
+                                            protocol_port=81)
+
+        self.driver_mock.listener.update.side_effect = Exception
+        self.mgr.update_listener(mock.Mock(), old_listener, listener)
+        self.driver_mock.listener.update.assert_called_once_with(old_listener,
+                                                                 listener)
+        self.rpc_mock.update_status.assert_called_once_with('listener',
+                                                            listener.id,
+                                                            constants.ERROR)
+
+    def test_delete_listener(self):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                            loadbalancer=loadbalancer,
+                                            protocol_port=80)
+        self.mgr.delete_listener(mock.Mock(), listener)
+        self.driver_mock.listener.delete.assert_called_once_with(listener)
+
+    # def test_create_pool(self):
+    #     pool = {'id': 'id1'}
+    #     self.assertNotIn(pool['id'], self.mgr.instance_mapping)
+    #     self.mgr.create_pool(mock.Mock(), pool, 'devdriver')
+    #     self.driver_mock.create_pool.assert_called_once_with(pool)
+    #     self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
+    #                                                         constants.ACTIVE)
+    #     self.assertIn(pool['id'], self.mgr.instance_mapping)
+    #
+    # def test_create_pool_failed(self):
+    #     pool = {'id': 'id1'}
+    #     self.assertNotIn(pool['id'], self.mgr.instance_mapping)
+    #     self.driver_mock.create_pool.side_effect = Exception
+    #     self.mgr.create_pool(mock.Mock(), pool, 'devdriver')
+    #     self.driver_mock.create_pool.assert_called_once_with(pool)
+    #     self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
+    #                                                         constants.ERROR)
+    #     self.assertNotIn(pool['id'], self.mgr.instance_mapping)
+    #
+    # def test_update_pool(self):
+    #     old_pool = {'id': '1'}
+    #     pool = {'id': '1'}
+    #     self.mgr.update_pool(mock.Mock(), old_pool, pool)
+    #     self.driver_mock.update_pool.assert_called_once_with(old_pool, pool)
+    #     self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
+    #                                                         constants.ACTIVE)
+    #
+    # def test_update_pool_failed(self):
+    #     old_pool = {'id': '1'}
+    #     pool = {'id': '1'}
+    #     self.driver_mock.update_pool.side_effect = Exception
+    #     self.mgr.update_pool(mock.Mock(), old_pool, pool)
+    #     self.driver_mock.update_pool.assert_called_once_with(old_pool, pool)
+    #     self.rpc_mock.update_status.assert_called_once_with('pool', pool['id'],
+    #                                                         constants.ERROR)
+    #
+    # def test_delete_pool(self):
+    #     pool = {'id': '1'}
+    #     self.assertIn(pool['id'], self.mgr.instance_mapping)
+    #     self.mgr.delete_pool(mock.Mock(), pool)
+    #     self.driver_mock.delete_pool.assert_called_once_with(pool)
+    #     self.assertNotIn(pool['id'], self.mgr.instance_mapping)
+    #
+    # def test_create_member(self):
+    #     member = {'id': 'id1', 'pool_id': '1'}
+    #     self.mgr.create_member(mock.Mock(), member)
+    #     self.driver_mock.create_member.assert_called_once_with(member)
+    #     self.rpc_mock.update_status.assert_called_once_with('member',
+    #                                                         member['id'],
+    #                                                         constants.ACTIVE)
+    #
+    # def test_create_member_failed(self):
+    #     member = {'id': 'id1', 'pool_id': '1'}
+    #     self.driver_mock.create_member.side_effect = Exception
+    #     self.mgr.create_member(mock.Mock(), member)
+    #     self.driver_mock.create_member.assert_called_once_with(member)
+    #     self.rpc_mock.update_status.assert_called_once_with('member',
+    #                                                         member['id'],
+    #                                                         constants.ERROR)
+    #
+    # def test_update_member(self):
+    #     old_member = {'id': 'id1'}
+    #     member = {'id': 'id1', 'pool_id': '1'}
+    #     self.mgr.update_member(mock.Mock(), old_member, member)
+    #     self.driver_mock.update_member.assert_called_once_with(old_member,
+    #                                                            member)
+    #     self.rpc_mock.update_status.assert_called_once_with('member',
+    #                                                         member['id'],
+    #                                                         constants.ACTIVE)
+    #
+    # def test_update_member_failed(self):
+    #     old_member = {'id': 'id1'}
+    #     member = {'id': 'id1', 'pool_id': '1'}
+    #     self.driver_mock.update_member.side_effect = Exception
+    #     self.mgr.update_member(mock.Mock(), old_member, member)
+    #     self.driver_mock.update_member.assert_called_once_with(old_member,
+    #                                                            member)
+    #     self.rpc_mock.update_status.assert_called_once_with('member',
+    #                                                         member['id'],
+    #                                                         constants.ERROR)
+    #
+    # def test_delete_member(self):
+    #     member = {'id': 'id1', 'pool_id': '1'}
+    #     self.mgr.delete_member(mock.Mock(), member)
+    #     self.driver_mock.delete_member.assert_called_once_with(member)
+    #
+    # def test_create_monitor(self):
+    #     monitor = {'id': 'id1'}
+    #     assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
+    #     self.mgr.create_pool_health_monitor(mock.Mock(), monitor, '1')
+    #     self.driver_mock.create_pool_health_monitor.assert_called_once_with(
+    #         monitor, '1')
+    #     self.rpc_mock.update_status.assert_called_once_with('health_monitor',
+    #                                                         assoc_id,
+    #                                                         constants.ACTIVE)
+    #
+    # def test_create_monitor_failed(self):
+    #     monitor = {'id': 'id1'}
+    #     assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
+    #     self.driver_mock.create_pool_health_monitor.side_effect = Exception
+    #     self.mgr.create_pool_health_monitor(mock.Mock(), monitor, '1')
+    #     self.driver_mock.create_pool_health_monitor.assert_called_once_with(
+    #         monitor, '1')
+    #     self.rpc_mock.update_status.assert_called_once_with('health_monitor',
+    #                                                         assoc_id,
+    #                                                         constants.ERROR)
+    #
+    # def test_update_monitor(self):
+    #     monitor = {'id': 'id1'}
+    #     assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
+    #     self.mgr.update_pool_health_monitor(mock.Mock(), monitor, monitor, '1')
+    #     self.driver_mock.update_pool_health_monitor.assert_called_once_with(
+    #         monitor, monitor, '1')
+    #     self.rpc_mock.update_status.assert_called_once_with('health_monitor',
+    #                                                         assoc_id,
+    #                                                         constants.ACTIVE)
+    #
+    # def test_update_monitor_failed(self):
+    #     monitor = {'id': 'id1'}
+    #     assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
+    #     self.driver_mock.update_pool_health_monitor.side_effect = Exception
+    #     self.mgr.update_pool_health_monitor(mock.Mock(), monitor, monitor, '1')
+    #     self.driver_mock.update_pool_health_monitor.assert_called_once_with(
+    #         monitor, monitor, '1')
+    #     self.rpc_mock.update_status.assert_called_once_with('health_monitor',
+    #                                                         assoc_id,
+    #                                                         constants.ERROR)
+    #
+    # def test_delete_monitor(self):
+    #     monitor = {'id': 'id1'}
+    #     self.mgr.delete_pool_health_monitor(mock.Mock(), monitor, '1')
+    #     self.driver_mock.delete_pool_health_monitor.assert_called_once_with(
+    #         monitor, '1')
+

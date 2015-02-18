@@ -23,6 +23,7 @@ import oslo_messaging as messaging
 
 from neutron_lbaas.db.loadbalancer import loadbalancer_dbv2
 from neutron_lbaas.db.loadbalancer import models as db_models
+from neutron_lbaas.services.loadbalancer import data_models
 
 LOG = logging.getLogger(__name__)
 
@@ -63,6 +64,14 @@ class LoadBalancerCallbacks(object):
             qry = qry.filter(
                 loadbalancer_dbv2.models.LoadBalancer.admin_state_up == up)
             return [id for id, in qry]
+
+    def get_load_balancer(self, context, load_balancer_id=None):
+        with context.session.begin(subtransactions=True):
+            qry = context.session.query(db_models.LoadBalancer)
+            qry = qry.filter_by(id=load_balancer_id)
+            lb = qry.one()
+
+            return data_models.LoadBalancer.from_sqlalchemy_model(lb)
 
     def loadbalancer_deployed(self, context, loadbalancer_id):
         with context.session.begin(subtransactions=True):
