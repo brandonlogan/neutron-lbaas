@@ -31,8 +31,7 @@ class LbaasAgentApi(object):
 
     def get_ready_devices(self):
         cctxt = self.client.prepare()
-        return cctxt.call(self.context, 'get_ready_devices', host=self.host)\
-
+        return cctxt.call(self.context, 'get_ready_devices', host=self.host)
 
     def loadbalancer_deployed(self, load_balancer_id):
         cctxt = self.client.prepare()
