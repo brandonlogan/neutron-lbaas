@@ -96,7 +96,7 @@ class BaseDataModel(object):
                         setattr(instance, attr_name, attr_list)
             # This isn't a relationship so it must be a "primitive"
             else:
-                setattr(instance, attr_name, getattr(sa_model, attr_name))
+                setattr(instance, attr_name, attr)
         return instance
 
     @property
@@ -181,6 +181,14 @@ class SessionPersistence(BaseDataModel):
         return super(SessionPersistence, self).to_dict(pool=False,
                                                        pool_id=False)
 
+    @classmethod
+    def from_dict(cls, model_dict):
+        pool = model_dict.pop('pool', None)
+        if pool:
+            model_dict['pool'] = Pool.from_dict(
+                pool)
+        return SessionPersistence(**model_dict)
+
 
 class LoadBalancerStatistics(BaseDataModel):
 
@@ -230,6 +238,14 @@ class HealthMonitor(BaseDataModel):
             ret_dict['pools'].append({'id': self.pool.id})
         return ret_dict
 
+    @classmethod
+    def from_dict(cls, model_dict):
+        pool = model_dict.pop('pool', None)
+        if pool:
+            model_dict['pool'] = Pool.from_dict(
+                pool)
+        return HealthMonitor(**model_dict)
+
 
 class Pool(BaseDataModel):
 
@@ -272,6 +288,24 @@ class Pool(BaseDataModel):
         ret_dict['members'] = [{'id': member.id} for member in self.members]
         return ret_dict
 
+    @classmethod
+    def from_dict(cls, model_dict):
+        health_monitor = model_dict.pop('health_monitor', None)
+        session_persistence = model_dict.pop('session_persistence', None)
+        listeners = model_dict.pop('listeners', [])
+        members = model_dict.pop('members', [])
+        model_dict['listeners'] = [Listener.from_dict(listener)
+                                   for listener in listeners]
+        model_dict['members'] = [Member.from_dict(member)
+                                 for member in members]
+        if health_monitor:
+            model_dict['health_monitor'] = HealthMonitor.from_dict(
+                health_monitor)
+        if session_persistence:
+            model_dict['session_persistence'] = SessionPersistence.from_dict(
+                session_persistence)
+        return Pool(**model_dict)
+
 
 class Member(BaseDataModel):
 
@@ -298,6 +332,14 @@ class Member(BaseDataModel):
     def to_api_dict(self):
         return super(Member, self).to_dict(
             provisioning_status=False, operating_status=False, pool=False)
+
+    @classmethod
+    def from_dict(cls, model_dict):
+        pool = model_dict.pop('pool', None)
+        if pool:
+            model_dict['pool'] = Pool.from_dict(
+                pool)
+        return Member(**model_dict)
 
 
 class Listener(BaseDataModel):
@@ -338,7 +380,13 @@ class Listener(BaseDataModel):
 
     @classmethod
     def from_dict(cls, model_dict):
-        pass
+        default_pool = model_dict.pop('default_pool', None)
+        loadbalancer = model_dict.pop('loadbalancer', None)
+        if default_pool:
+            model_dict['default_pool'] = Pool.from_dict(default_pool)
+        if loadbalancer:
+            model_dict['loadbalancer'] = LoadBalancer.from_dict(loadbalancer)
+        return Listener(**model_dict)
 
 
 class LoadBalancer(BaseDataModel):
