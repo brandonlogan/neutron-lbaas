@@ -65,10 +65,10 @@ class LoadBalancerCallbacks(object):
                 loadbalancer_dbv2.models.LoadBalancer.admin_state_up == up)
             return [id for id, in qry]
 
-    def get_load_balancer(self, context, load_balancer_id=None):
+    def get_load_balancer(self, context, loadbalancer_id=None):
         with context.session.begin(subtransactions=True):
             qry = context.session.query(db_models.LoadBalancer)
-            qry = qry.filter_by(id=load_balancer_id)
+            qry = qry.filter_by(id=loadbalancer_id)
             lb = qry.one()
 
             return data_models.LoadBalancer.from_sqlalchemy_model(lb)

@@ -59,7 +59,6 @@ class TestApiCache(base.BaseTestCase):
     def test_get_ready_devices(self):
         self._test_method('get_ready_devices')
 
-    # TODO(ptoohill): need to add get_loadbalancer to callbacks
     def test_get_loadbalancer(self):
         self._test_method('get_load_balancer',
                           load_balancer_id='loadbalancer_id')

@@ -33,6 +33,11 @@ class LbaasAgentApi(object):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'get_ready_devices', host=self.host)
 
+    def get_load_balancer(self, load_balancer_id):
+        cctxt = self.client.prepare()
+        return cctxt.call(self.context, 'get_load_balancer',
+                          load_balancer_id=load_balancer_id)
+
     def loadbalancer_deployed(self, load_balancer_id):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'loadbalancer_deployed',
