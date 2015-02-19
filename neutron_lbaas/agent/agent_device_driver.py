@@ -1,6 +1,5 @@
-# Copyright 2013 OpenStack Foundation
+# Copyright 2013 OpenStack Foundation.  All rights reserved
 # Copyright 2015 Rackspace
-# All rights reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -18,90 +17,69 @@ import abc
 
 import six
 
+from neutron_lbaas.services.loadbalancer.drivers import driver_base
+from neutron_lbaas.services.loadbalancer.drivers import driver_mixins
+
 
 @six.add_metaclass(abc.ABCMeta)
-class AgentDeviceDriver(object):
+class AgentDeviceDriver(driver_base.LoadBalancerBaseDriver):
     """Abstract device driver that defines the API required by LBaaS agent."""
 
+    def __init__(self, conf, plugin_rpc):
+        self.conf = conf
+        self.plugin_rpc = plugin_rpc
+
     @abc.abstractmethod
-    def get_name(cls):
+    def get_name(self):
         """Returns unique name across all LBaaS device drivers."""
         pass
 
     @abc.abstractmethod
-    def deploy_instance(self, logical_config):
-        """Fully deploys a loadbalancer instance from a given config."""
+    def deploy_instance(self, loadbalancer):
+        """Fully deploys a loadbalancer instance from a given loadbalancer."""
         pass
 
     @abc.abstractmethod
-    def undeploy_instance(self, pool_id):
+    def undeploy_instance(self, loadbalancer_id, **kwargs):
         """Fully undeploys the loadbalancer instance."""
         pass
 
-    @abc.abstractmethod
-    def get_stats(self, pool_id):
-        pass
-
-    def remove_orphans(self, known_pool_ids):
+    def remove_orphans(self, known_loadbalancer_ids):
         # Not all drivers will support this
         raise NotImplementedError()
 
-    @abc.abstractmethod
-    def create_loadbalancer(self, loadbalancer):
-        pass
 
-    @abc.abstractmethod
-    def update_loadbalancer(self, old_loadbalancer, loadbalancer):
-        pass
+class BaseManagerMixin(driver_mixins.BaseManagerMixin):
 
-    @abc.abstractmethod
-    def delete_loadbalancer(self, loadbalancer):
-        pass
+    def db_delete_method(self):
+        # We do not need to use this method
+        raise NotImplementedError()
 
-    @abc.abstractmethod
-    def create_listener(self, listener):
-        pass
+    def successful_completion(self, context, obj, delete=False):
+        # We do not need to use this method
+        raise NotImplementedError()
 
-    @abc.abstractmethod
-    def update_listener(self, old_listener, listener):
-        pass
+    def failed_completion(self, context, obj):
+        # We do not need to use this method
+        raise NotImplementedError()
 
-    @abc.abstractmethod
-    def delete_listener(self, listener):
-        pass
 
-    @abc.abstractmethod
-    def create_pool(self, pool):
-        pass
+class BaseLoadBalancerManager(BaseManagerMixin, driver_mixins.BaseStatsMixin,
+                              driver_mixins.BaseRefreshMixin):
+    pass
 
-    @abc.abstractmethod
-    def update_pool(self, old_pool, pool):
-        pass
 
-    @abc.abstractmethod
-    def delete_pool(self, pool):
-        pass
+class BaseListenerManager(BaseManagerMixin):
+    pass
 
-    @abc.abstractmethod
-    def create_member(self, member):
-        pass
 
-    @abc.abstractmethod
-    def update_member(self, old_member, member):
-        pass
+class BasePoolManager(BaseManagerMixin):
+    pass
 
-    @abc.abstractmethod
-    def delete_member(self, member):
-        pass
 
-    @abc.abstractmethod
-    def create_health_monitor(self, health_monitor):
-        pass
+class BaseMemberManager(BaseManagerMixin):
+    pass
 
-    @abc.abstractmethod
-    def update_health_monitor(self, old_health_monitor, health_monitor):
-        pass
 
-    @abc.abstractmethod
-    def delete_health_monitor(self, health_monitor):
-        pass
+class BaseHealthMonitorManager(BaseManagerMixin):
+    pass

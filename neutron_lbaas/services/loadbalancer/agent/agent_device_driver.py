@@ -1,4 +1,5 @@
-# Copyright 2013 OpenStack Foundation.  All rights reserved
+# Copyright 2013 OpenStack Foundation
+# All rights reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -22,7 +23,7 @@ class AgentDeviceDriver(object):
     """Abstract device driver that defines the API required by LBaaS agent."""
 
     @abc.abstractmethod
-    def get_name(self):
+    def get_name(cls):
         """Returns unique name across all LBaaS device drivers."""
         pass
 
@@ -32,7 +33,7 @@ class AgentDeviceDriver(object):
         pass
 
     @abc.abstractmethod
-    def undeploy_instance(self, pool_id, **kwargs):
+    def undeploy_instance(self, pool_id):
         """Fully undeploys the loadbalancer instance."""
         pass
 
@@ -45,15 +46,27 @@ class AgentDeviceDriver(object):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def create_vip(self, vip):
+    def create_loadbalancer(self, loadbalancer):
         pass
 
     @abc.abstractmethod
-    def update_vip(self, old_vip, vip):
+    def update_loadbalancer(self, old_loadbalancer, loadbalancer):
         pass
 
     @abc.abstractmethod
-    def delete_vip(self, vip):
+    def delete_loadbalancer(self, loadbalancer):
+        pass
+
+    @abc.abstractmethod
+    def create_listener(self, listener):
+        pass
+
+    @abc.abstractmethod
+    def update_listener(self, old_listener, listener):
+        pass
+
+    @abc.abstractmethod
+    def delete_listener(self, listener):
         pass
 
     @abc.abstractmethod
@@ -81,16 +94,13 @@ class AgentDeviceDriver(object):
         pass
 
     @abc.abstractmethod
-    def create_pool_health_monitor(self, health_monitor, pool_id):
+    def create_health_monitor(self, health_monitor):
         pass
 
     @abc.abstractmethod
-    def update_pool_health_monitor(self,
-                                   old_health_monitor,
-                                   health_monitor,
-                                   pool_id):
+    def update_health_monitor(self, old_health_monitor, health_monitor):
         pass
 
     @abc.abstractmethod
-    def delete_pool_health_monitor(self, health_monitor, pool_id):
+    def delete_health_monitor(self, health_monitor):
         pass
