@@ -374,7 +374,7 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
             self.plugin_rpc.update_status(
                 'health_monitor', health_monitor.id, constants.ACTIVE)
 
-    def update_pool_health_monitor(self, context, old_health_monitor,
+    def update_health_monitor(self, context, old_health_monitor,
                                    health_monitor):
         health_monitor = data_models.HealthMonitor.from_dict(health_monitor)
         old_health_monitor = data_models.HealthMonitor.from_dict(
@@ -393,4 +393,4 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
     def delete_health_monitor(self, context, health_monitor):
         health_monitor = data_models.HealthMonitor.from_dict(health_monitor)
         driver = self._get_driver(health_monitor.pool.listener.loadbalancer.id)
-        driver.delete_pool_health_monitor(health_monitor)
+        driver.health_monitor.delete(health_monitor)

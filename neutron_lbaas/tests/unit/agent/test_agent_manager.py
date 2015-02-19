@@ -420,13 +420,13 @@ class TestManager(base.BaseTestCase):
         self.driver_mock.pool.delete.assert_called_once_with(pool)
 
     @mock.patch.object(data_models.Member, 'from_dict')
-    def test_create_member(self, mmemeber):
+    def test_create_member(self, mmember):
         loadbalancer = data_models.LoadBalancer(id='1')
         listener = data_models.Listener(id=1, loadbalancer_id='1',
                                         loadbalancer=loadbalancer)
         pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
         member = data_models.Member(id='1', pool=pool)
-        mmemeber.return_value = member
+        mmember.return_value = member
         self.mgr.create_member(mock.Mock(), member.to_dict())
         self.driver_mock.member.create.assert_called_once_with(member)
         self.rpc_mock.update_status.assert_called_once_with('member',
@@ -434,13 +434,13 @@ class TestManager(base.BaseTestCase):
                                                             constants.ACTIVE)
 
     @mock.patch.object(data_models.Member, 'from_dict')
-    def test_create_member_failed(self, mmemeber):
+    def test_create_member_failed(self, mmember):
         loadbalancer = data_models.LoadBalancer(id='1')
         listener = data_models.Listener(id=1, loadbalancer_id='1',
                                         loadbalancer=loadbalancer)
         pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
         member = data_models.Member(id='1', pool=pool)
-        mmemeber.return_value = member
+        mmember.return_value = member
         self.driver_mock.member.create.side_effect = Exception
         self.mgr.create_member(mock.Mock(), member.to_dict())
         self.driver_mock.member.create.assert_called_once_with(member)
@@ -449,14 +449,14 @@ class TestManager(base.BaseTestCase):
                                                             constants.ERROR)
 
     @mock.patch.object(data_models.Member, 'from_dict')
-    def test_update_member(self, mmemeber):
+    def test_update_member(self, mmember):
         loadbalancer = data_models.LoadBalancer(id='1')
         listener = data_models.Listener(id=1, loadbalancer_id='1',
                                         loadbalancer=loadbalancer)
         pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
         member = data_models.Member(id='1', pool=pool, weight=1)
         old_member = data_models.Member(id='1', pool=pool, weight=2)
-        mmemeber.side_effect = [member, old_member]
+        mmember.side_effect = [member, old_member]
         self.mgr.update_member(mock.Mock(), old_member.to_dict(),
                                member.to_dict())
         self.driver_mock.member.update.assert_called_once_with(old_member,
@@ -465,67 +465,108 @@ class TestManager(base.BaseTestCase):
                                                             member.id,
                                                             constants.ACTIVE)
 
-    def test_update_member_failed(self):
-        old_member = {'id': 'id1'}
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.driver_mock.update_member.side_effect = Exception
-        self.mgr.update_member(mock.Mock(), old_member, member)
-        self.driver_mock.update_member.assert_called_once_with(old_member,
+    @mock.patch.object(data_models.Member, 'from_dict')
+    def test_update_member_failed(self, mmember):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        member = data_models.Member(id='1', pool=pool, weight=1)
+        old_member = data_models.Member(id='1', pool=pool, weight=2)
+        mmember.side_effect = [member, old_member]
+        self.driver_mock.member.update.side_effect = Exception
+        self.mgr.update_member(mock.Mock(), old_member.to_dict(),
+                               member.to_dict())
+        self.driver_mock.member.update.assert_called_once_with(old_member,
                                                                member)
         self.rpc_mock.update_status.assert_called_once_with('member',
-                                                            member['id'],
+                                                            member.id,
                                                             constants.ERROR)
 
-    def test_delete_member(self):
-        member = {'id': 'id1', 'pool_id': '1'}
-        self.mgr.delete_member(mock.Mock(), member)
-        self.driver_mock.delete_member.assert_called_once_with(member)
+    @mock.patch.object(data_models.Member, 'from_dict')
+    def test_delete_member(self, mmember):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        member = data_models.Member(id='1', pool=pool, weight=1)
+        mmember.return_value = member
+        self.mgr.delete_member(mock.Mock(), member.to_dict())
+        self.driver_mock.member.delete.assert_called_once_with(member)
 
-    def test_create_monitor(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.mgr.create_pool_health_monitor(mock.Mock(), monitor, '1')
-        self.driver_mock.create_pool_health_monitor.assert_called_once_with(
-            monitor, '1')
+    @mock.patch.object(data_models.HealthMonitor, 'from_dict')
+    def test_create_monitor(self, mmonitor):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        monitor = data_models.HealthMonitor(id='1',  pool=pool)
+        mmonitor.return_value = monitor
+        self.mgr.create_health_monitor(mock.Mock(), monitor.to_dict())
+        self.driver_mock.health_monitor.create.assert_called_once_with(
+            monitor)
         self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
+                                                            monitor.id,
                                                             constants.ACTIVE)
 
-    def test_create_monitor_failed(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.driver_mock.create_pool_health_monitor.side_effect = Exception
-        self.mgr.create_pool_health_monitor(mock.Mock(), monitor, '1')
-        self.driver_mock.create_pool_health_monitor.assert_called_once_with(
-            monitor, '1')
+    @mock.patch.object(data_models.HealthMonitor, 'from_dict')
+    def test_create_monitor_failed(self, mmonitor):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        monitor = data_models.HealthMonitor(id='1',  pool=pool)
+        mmonitor.return_value = monitor
+        self.driver_mock.health_monitor.create.side_effect = Exception
+        self.mgr.create_health_monitor(mock.Mock(), monitor.to_dict())
+        self.driver_mock.health_monitor.create.assert_called_once_with(monitor)
         self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
+                                                            monitor.id,
                                                             constants.ERROR)
 
-    def test_update_monitor(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
-        self.mgr.update_pool_health_monitor(mock.Mock(), monitor, monitor, '1')
-        self.driver_mock.update_pool_health_monitor.assert_called_once_with(
-            monitor, monitor, '1')
+    @mock.patch.object(data_models.HealthMonitor, 'from_dict')
+    def test_update_monitor(self, mmonitor):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        monitor = data_models.HealthMonitor(id='1',  pool=pool, delay=1)
+        old_monitor = data_models.HealthMonitor(id='1',  pool=pool, delay=2)
+        mmonitor.side_effect = [monitor, old_monitor]
+        self.mgr.update_health_monitor(mock.Mock(), old_monitor.to_dict(),
+                                       monitor.to_dict())
+        self.driver_mock.health_monitor.update.assert_called_once_with(
+            old_monitor, monitor)
         self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
+                                                            monitor.id,
                                                             constants.ACTIVE)
 
-    def test_update_monitor_failed(self):
-        monitor = {'id': 'id1'}
-        assoc_id = {'monitor_id': monitor['id'], 'pool_id': '1'}
+    @mock.patch.object(data_models.HealthMonitor, 'from_dict')
+    def test_update_monitor_failed(self, mmonitor):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        monitor = data_models.HealthMonitor(id='1',  pool=pool, delay=1)
+        old_monitor = data_models.HealthMonitor(id='1',  pool=pool, delay=2)
+        mmonitor.side_effect = [monitor, old_monitor]
         self.driver_mock.update_pool_health_monitor.side_effect = Exception
-        self.mgr.update_pool_health_monitor(mock.Mock(), monitor, monitor, '1')
-        self.driver_mock.update_pool_health_monitor.assert_called_once_with(
-            monitor, monitor, '1')
+        self.mgr.update_health_monitor(mock.Mock(), monitor.to_dict(),
+                                       monitor.to_dict())
+        self.driver_mock.health_monitor.update.assert_called_once_with(
+            old_monitor, monitor)
         self.rpc_mock.update_status.assert_called_once_with('health_monitor',
-                                                            assoc_id,
+                                                            monitor.id,
                                                             constants.ERROR)
 
-    def test_delete_monitor(self):
-        monitor = {'id': 'id1'}
-        self.mgr.delete_pool_health_monitor(mock.Mock(), monitor, '1')
-        self.driver_mock.delete_pool_health_monitor.assert_called_once_with(
-            monitor, '1')
-
+    @mock.patch.object(data_models.HealthMonitor, 'from_dict')
+    def test_delete_monitor(self, mmonitor):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer)
+        pool = data_models.Pool(id='1', listener=listener, protocol='HTTPS')
+        monitor = data_models.HealthMonitor(id='1',  pool=pool)
+        mmonitor.return_value = monitor
+        self.mgr.delete_health_monitor(mock.Mock(), monitor.to_dict())
+        self.driver_mock.health_monitor.delete.assert_called_once_with(
+            monitor)

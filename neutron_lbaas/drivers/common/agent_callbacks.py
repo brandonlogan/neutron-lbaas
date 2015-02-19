@@ -50,7 +50,7 @@ class LoadBalancerCallbacks(object):
             loadbalancers = self.plugin.db.list_loadbalancers_on_lbaas_agent(
                 context, agents[0].id)
             loadbalancer_ids = [
-                l['id'] for l in loadbalancers['loadbalancers']]
+                l.id for l in loadbalancers]
 
             qry = context.session.query(
                 loadbalancer_dbv2.models.LoadBalancer.id)
