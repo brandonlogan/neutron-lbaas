@@ -550,7 +550,7 @@ class TestManager(base.BaseTestCase):
         monitor = data_models.HealthMonitor(id='1',  pool=pool, delay=1)
         old_monitor = data_models.HealthMonitor(id='1',  pool=pool, delay=2)
         mmonitor.side_effect = [monitor, old_monitor]
-        self.driver_mock.update_pool_health_monitor.side_effect = Exception
+        self.driver_mock.health_monitor.update.side_effect = Exception
         self.mgr.update_health_monitor(mock.Mock(), monitor.to_dict(),
                                        monitor.to_dict())
         self.driver_mock.health_monitor.update.assert_called_once_with(

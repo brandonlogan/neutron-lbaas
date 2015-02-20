@@ -375,7 +375,7 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
                 'health_monitor', health_monitor.id, constants.ACTIVE)
 
     def update_health_monitor(self, context, old_health_monitor,
-                                   health_monitor):
+                              health_monitor):
         health_monitor = data_models.HealthMonitor.from_dict(health_monitor)
         old_health_monitor = data_models.HealthMonitor.from_dict(
             old_health_monitor)
