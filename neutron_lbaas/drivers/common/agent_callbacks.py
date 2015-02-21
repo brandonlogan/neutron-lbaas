@@ -65,13 +65,22 @@ class LoadBalancerCallbacks(object):
                 loadbalancer_dbv2.models.LoadBalancer.admin_state_up == up)
             return [id for id, in qry]
 
-    def get_load_balancer(self, context, loadbalancer_id=None):
-        with context.session.begin(subtransactions=True):
-            qry = context.session.query(db_models.LoadBalancer)
-            qry = qry.filter_by(id=loadbalancer_id)
-            lb = qry.one()
+    def get_loadbalancer(self, context, loadbalancer_id=None):
+        lb_model = self.plugin.db.get_loadbalancer(context, loadbalancer_id)
+        if lb_model.vip_port and lb_model.vip_port.fixed_ips:
+            for fixed_ip in lb_model.vip_port.fixed_ips:
+                subnet_dict = self.plugin.db._core_plugin.get_subnet(
+                    context, fixed_ip.subnet_id
+                )
+                setattr(fixed_ip, 'subnet', data_models.Subnet.from_dict(
+                    subnet_dict))
+        if lb_model.provider:
+            device_driver = self.plugin.drivers[
+                lb_model.provider.provider_name].device_driver
+            setattr(lb_model.provider, 'device_driver', device_driver)
+        lb_dict = lb_model.to_dict(stats=False)
 
-            return data_models.LoadBalancer.from_sqlalchemy_model(lb)
+        return lb_dict
 
     def loadbalancer_deployed(self, context, loadbalancer_id):
         with context.session.begin(subtransactions=True):
@@ -98,11 +107,11 @@ class LoadBalancerCallbacks(object):
                                 if (m.provisioning_status in
                                         constants.ACTIVE_PENDING_STATUSES):
                                     m.provisioning_status = constants.ACTIVE
-                        if l.default_pool.health_monitor:
-                            hm = l.default_pool.health_monitor
+                        if l.default_pool.healthmonitor:
+                            hm = l.default_pool.healthmonitor
                             ps = hm.provisioning_status
                             if ps in constants.ACTIVE_PENDING_STATUSES:
-                                (l.default_pool.health_monitor
+                                (l.default_pool.healthmonitor
                                  .provisioning_status) = constants.ACTIVE
 
     def update_status(self, context, obj_type, obj_id, status):
@@ -191,4 +200,5 @@ class LoadBalancerCallbacks(object):
     def update_loadbalancer_stats(self, context,
                                   loadbalancer_id=None,
                                   stats=None):
-        self.plugin.update_loadbalancer_stats(context, loadbalancer_id, stats)
+        self.plugin.db.update_loadbalancer_stats(context, loadbalancer_id,
+                                                 stats)

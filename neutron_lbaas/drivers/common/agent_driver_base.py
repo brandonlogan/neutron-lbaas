@@ -168,8 +168,13 @@ class LoadBalancerManager(driver_base.BaseLoadBalancerManager):
     def delete(self, context, loadbalancer):
         super(LoadBalancerManager, self).delete(context, loadbalancer)
         agent = self.driver.get_loadbalancer_agent(context, loadbalancer.id)
-        self.driver.agent_rpc.delete_loadbalancer(context, loadbalancer,
-                                                  agent['host'])
+        # TODO(blogan): Rethink deleting from the database here. May want to
+        # wait until the agent actually deletes it.  Doing this now to keep
+        # what v1 had.
+        self.driver.plugin.db.delete_loadbalancer(context, loadbalancer.id)
+        if agent:
+            self.driver.agent_rpc.delete_loadbalancer(context, loadbalancer,
+                                                      agent['host'])
 
     def stats(self, context, loadbalancer):
         pass
@@ -196,7 +201,14 @@ class ListenerManager(driver_base.BaseListenerManager):
 
     def delete(self, context, listener):
         super(ListenerManager, self).delete(context, listener)
-        agent = self.driver.get_loadbalancer_agent(context, listener.id)
+        agent = self.driver.get_loadbalancer_agent(context,
+                                                   listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_listener(context, listener.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
+            context, listener.loadbalancer.id)
         self.driver.agent_rpc.delete_listener(context, listener, agent['host'])
 
 
@@ -219,6 +231,12 @@ class PoolManager(driver_base.BasePoolManager):
         super(PoolManager, self).delete(context, pool)
         agent = self.driver.get_loadbalancer_agent(
             context, pool.listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_pool(context, pool.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
+            context, pool.listener.loadbalancer.id)
         self.driver.agent_rpc.delete_pool(context, pool, agent['host'])
 
 
@@ -240,6 +258,12 @@ class MemberManager(driver_base.BaseMemberManager):
     def delete(self, context, member):
         super(MemberManager, self).delete(context, member)
         agent = self.driver.get_loadbalancer_agent(
+            context, member.pool.listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_pool_member(context, member.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
             context, member.pool.listener.loadbalancer.id)
         self.driver.agent_rpc.delete_member(context, member, agent['host'])
 
@@ -264,6 +288,12 @@ class HealthMonitorManager(driver_base.BaseHealthMonitorManager):
     def delete(self, context, healthmonitor):
         super(HealthMonitorManager, self).delete(context, healthmonitor)
         agent = self.driver.get_loadbalancer_agent(
+            context, healthmonitor.pool.listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_healthmonitor(context, healthmonitor.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
             context, healthmonitor.pool.listener.loadbalancer.id)
         self.driver.agent_rpc.delete_healthmonitor(
             context, healthmonitor, agent['host'])

@@ -33,25 +33,25 @@ class LbaasAgentApi(object):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'get_ready_devices', host=self.host)
 
-    def get_load_balancer(self, load_balancer_id):
+    def get_loadbalancer(self, loadbalancer_id):
         cctxt = self.client.prepare()
-        return cctxt.call(self.context, 'get_load_balancer',
-                          load_balancer_id=load_balancer_id)
+        return cctxt.call(self.context, 'get_loadbalancer',
+                          loadbalancer_id=loadbalancer_id)
 
-    def loadbalancer_deployed(self, load_balancer_id):
+    def loadbalancer_deployed(self, loadbalancer_id):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'loadbalancer_deployed',
-                          load_balancer_id=load_balancer_id)
+                          loadbalancer_id=loadbalancer_id)
 
     def update_status(self, obj_type, obj_id, status):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'update_status', obj_type=obj_type,
                           obj_id=obj_id, status=status)
 
-    def loadbalancer_destroyed(self, load_balancer_id):
+    def loadbalancer_destroyed(self, loadbalancer_id):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'loadbalancer_destroyed',
-                          load_balancer_id=load_balancer_id)
+                          loadbalancer_id=loadbalancer_id)
 
     def plug_vip_port(self, port_id):
         cctxt = self.client.prepare()
@@ -63,8 +63,7 @@ class LbaasAgentApi(object):
         return cctxt.call(self.context, 'unplug_vip_port', port_id=port_id,
                           host=self.host)
 
-    def update_loadbalancer_stats(self, load_balancer_id, stats):
+    def update_loadbalancer_stats(self, loadbalancer_id, stats):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'update_loadbalancer_stats',
-                          load_balancer_id=load_balancer_id, stats=stats,
-                          host=self.host)
+                          loadbalancer_id=loadbalancer_id, stats=stats)

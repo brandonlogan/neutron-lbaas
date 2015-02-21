@@ -46,19 +46,19 @@ class TestLoadBalancerCallbacks(
 
     def test_get_ready_devices(self):
         with self.loadbalancer() as loadbalancer:
+            lb_id = loadbalancer['loadbalancer']['id']
             self.plugin_instance.db.update_loadbalancer_provisioning_status(
                 context.get_admin_context(),
                 loadbalancer['loadbalancer']['id'])
             with mock.patch(
                     'neutron_lbaas.agent_scheduler.LbaasAgentSchedulerDbMixin.'
                     'list_loadbalancers_on_lbaas_agent') as mock_agent_lbs:
-                mock_agent_lbs.return_value = {
-                    'loadbalancers': [
-                        {'id': loadbalancer['loadbalancer']['id']}]}
+                mock_agent_lbs.return_value = [
+                    data_models.LoadBalancer(id=lb_id)]
                 ready = self.callbacks.get_ready_devices(
                     context.get_admin_context(),
                 )
-                self.assertEqual(ready, [loadbalancer['loadbalancer']['id']])
+                self.assertEqual(ready, [lb_id])
 
     def test_get_ready_devices_multiple_listeners_and_loadbalancers(self):
         ctx = context.get_admin_context()
@@ -98,9 +98,7 @@ class TestLoadBalancerCallbacks(
         with mock.patch(
                 'neutron_lbaas.agent_scheduler.LbaasAgentSchedulerDbMixin'
                 '.list_loadbalancers_on_lbaas_agent') as mock_agent_lbs:
-            mock_agent_lbs.return_value = {'loadbalancers': [
-                {'id': loadbalancers[0].id}, {'id': loadbalancers[1].id},
-                {'id': loadbalancers[2].id}]}
+            mock_agent_lbs.return_value = loadbalancers
             ready = self.callbacks.get_ready_devices(ctx)
             self.assertEqual(len(ready), 3)
             self.assertIn(loadbalancers[0].id, ready)
@@ -112,6 +110,7 @@ class TestLoadBalancerCallbacks(
 
     def test_get_ready_devices_inactive_loadbalancer(self):
         with self.loadbalancer() as loadbalancer:
+            lb_id = loadbalancer['loadbalancer']['id']
             self.plugin_instance.db.update_loadbalancer_provisioning_status(
                 context.get_admin_context(),
                 loadbalancer['loadbalancer']['id'])
@@ -125,16 +124,15 @@ class TestLoadBalancerCallbacks(
             with mock.patch(
                     'neutron_lbaas.agent_scheduler.LbaasAgentSchedulerDbMixin.'
                     'list_loadbalancers_on_lbaas_agent') as mock_agent_lbs:
-                mock_agent_lbs.return_value = {
-                    'loadbalancers': [{'id': loadbalancer[
-                        'loadbalancer']['id']}]}
+                mock_agent_lbs.return_value = [
+                    data_models.LoadBalancer(id=lb_id)]
                 ready = self.callbacks.get_ready_devices(
                     context.get_admin_context(),
                 )
                 self.assertEqual([loadbalancer['loadbalancer']['id']],
                                  ready)
 
-    def test_get_load_balancer_active(self):
+    def test_get_loadbalancer_active(self):
         with self.loadbalancer() as loadbalancer:
             ctx = context.get_admin_context()
             # activate objects
@@ -146,7 +144,7 @@ class TestLoadBalancerCallbacks(
                 ctx, loadbalancer['loadbalancer']['id']
             )
 
-            load_balancer = self.callbacks.get_load_balancer(
+            load_balancer = self.callbacks.get_loadbalancer(
                 ctx, loadbalancer['loadbalancer']['id']
             )
 

@@ -138,7 +138,7 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         for loadbalancer_id, driver_name in self.instance_mapping.items():
             driver = self.device_drivers[driver_name]
             try:
-                stats = driver.get_stats(loadbalancer_id)
+                stats = driver.loadbalancer.get_stats(loadbalancer_id)
                 if stats:
                     self.plugin_rpc.update_loadbalancer_stats(
                         loadbalancer_id, stats)
@@ -174,10 +174,11 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
 
     def _reload_loadbalancer(self, loadbalancer_id):
         try:
-            loadbalancer = self.plugin_rpc.get_load_balancer(loadbalancer_id)
-            # TODO(ptoohill): Add pluginrpc to get device driver
-            driver_name = self.plugin_rpc.get_device_driver(
-                loadbalancer.provider)
+            loadbalancer_dict = self.plugin_rpc.get_loadbalancer(
+                loadbalancer_id)
+            loadbalancer = data_models.LoadBalancer.from_dict(
+                loadbalancer_dict)
+            driver_name = loadbalancer.provider.device_driver
             if driver_name not in self.device_drivers:
                 LOG.error(_LE('No device driver on agent: %s.'), driver_name)
                 self.plugin_rpc.update_status(
@@ -188,7 +189,8 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
             self.instance_mapping[loadbalancer_id] = driver_name
             self.plugin_rpc.loadbalancer_deployed(loadbalancer_id)
         except Exception:
-            LOG.exception(_LE('Unable to deploy instance for pool: %s'),
+            LOG.exception(_LE('Unable to deploy instance for '
+                              'loadbalancer: %s'),
                           loadbalancer_id)
             self.needs_resync = True
 
@@ -241,7 +243,7 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
             return
         driver = self.device_drivers[driver_name]
         try:
-            driver.load_balancer.create(loadbalancer)
+            driver.loadbalancer.create(loadbalancer)
         except Exception:
             self._handle_failed_driver_call('create', 'loadbalancer',
                                             loadbalancer.id,
@@ -256,7 +258,7 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         old_loadbalancer = data_models.LoadBalancer.from_dict(old_loadbalancer)
         driver = self._get_driver(loadbalancer.id)
         try:
-            driver.load_balancer.update(old_loadbalancer, loadbalancer)
+            driver.loadbalancer.update(old_loadbalancer, loadbalancer)
         except Exception:
             self._handle_failed_driver_call('update', 'loadbalancer',
                                             loadbalancer.id,
@@ -268,7 +270,7 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
     def delete_loadbalancer(self, context, loadbalancer):
         loadbalancer = data_models.LoadBalancer.from_dict(loadbalancer)
         driver = self._get_driver(loadbalancer.id)
-        driver.load_balancer.delete(loadbalancer)
+        driver.loadbalancer.delete(loadbalancer)
         del self.instance_mapping[loadbalancer.id]
 
     def create_listener(self, context, listener):
@@ -283,6 +285,9 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         else:
             self.plugin_rpc.update_status('listener', listener.id,
                                           constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          listener.loadbalancer.id,
+                                          constants.ACTIVE)
 
     def update_listener(self, context, old_listener, listener):
         listener = data_models.Listener.from_dict(listener)
@@ -296,6 +301,9 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
                                             driver.get_name())
         else:
             self.plugin_rpc.update_status('listener', listener.id,
+                                          constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          listener.loadbalancer.id,
                                           constants.ACTIVE)
 
     def delete_listener(self, context, listener):
@@ -313,6 +321,9 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
                                             driver.get_name())
         else:
             self.plugin_rpc.update_status('pool', pool.id, constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          pool.root_loadbalancer.id,
+                                          constants.ACTIVE)
 
     def update_pool(self, context, old_pool, pool):
         pool = data_models.Pool.from_dict(pool)
@@ -325,6 +336,9 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
                                             driver.get_name())
         else:
             self.plugin_rpc.update_status('pool', pool.id, constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          pool.root_loadbalancer.id,
+                                          constants.ACTIVE)
 
     def delete_pool(self, context, pool):
         pool = data_models.Pool.from_dict(pool)
@@ -342,6 +356,9 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         else:
             self.plugin_rpc.update_status('member', member.id,
                                           constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          member.root_loadbalancer.id,
+                                          constants.ACTIVE)
 
     def update_member(self, context, old_member, member):
         member = data_models.Member.from_dict(member)
@@ -355,42 +372,51 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         else:
             self.plugin_rpc.update_status('member', member.id,
                                           constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          member.root_loadbalancer.id,
+                                          constants.ACTIVE)
 
     def delete_member(self, context, member):
         member = data_models.Member.from_dict(member)
         driver = self._get_driver(member.pool.listener.loadbalancer.id)
         driver.member.delete(member)
 
-    def create_health_monitor(self, context, health_monitor):
-        health_monitor = data_models.HealthMonitor.from_dict(health_monitor)
-        driver = self._get_driver(health_monitor.pool.listener.loadbalancer.id)
+    def create_healthmonitor(self, context, healthmonitor):
+        healthmonitor = data_models.HealthMonitor.from_dict(healthmonitor)
+        driver = self._get_driver(healthmonitor.pool.listener.loadbalancer.id)
         try:
-            driver.health_monitor.create(health_monitor)
+            driver.healthmonitor.create(healthmonitor)
         except Exception:
             self._handle_failed_driver_call(
-                'create', 'health_monitor', health_monitor.id,
+                'create', 'healthmonitor', healthmonitor.id,
                 driver.get_name())
         else:
             self.plugin_rpc.update_status(
-                'health_monitor', health_monitor.id, constants.ACTIVE)
+                'healthmonitor', healthmonitor.id, constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          healthmonitor.root_loadbalancer.id,
+                                          constants.ACTIVE)
 
-    def update_health_monitor(self, context, old_health_monitor,
-                              health_monitor):
-        health_monitor = data_models.HealthMonitor.from_dict(health_monitor)
-        old_health_monitor = data_models.HealthMonitor.from_dict(
-            old_health_monitor)
-        driver = self._get_driver(health_monitor.pool.listener.loadbalancer.id)
+    def update_healthmonitor(self, context, old_healthmonitor,
+                              healthmonitor):
+        healthmonitor = data_models.HealthMonitor.from_dict(healthmonitor)
+        old_healthmonitor = data_models.HealthMonitor.from_dict(
+            old_healthmonitor)
+        driver = self._get_driver(healthmonitor.pool.listener.loadbalancer.id)
         try:
-            driver.health_monitor.update(old_health_monitor, health_monitor)
+            driver.healthmonitor.update(old_healthmonitor, healthmonitor)
         except Exception:
             self._handle_failed_driver_call(
-                'update', 'health_monitor', health_monitor.id,
+                'update', 'healthmonitor', healthmonitor.id,
                 driver.get_name())
         else:
             self.plugin_rpc.update_status(
-                'health_monitor', health_monitor.id, constants.ACTIVE)
+                'healthmonitor', healthmonitor.id, constants.ACTIVE)
+            self.plugin_rpc.update_status('loadbalancer',
+                                          healthmonitor.root_loadbalancer.id,
+                                          constants.ACTIVE)
 
-    def delete_health_monitor(self, context, health_monitor):
-        health_monitor = data_models.HealthMonitor.from_dict(health_monitor)
-        driver = self._get_driver(health_monitor.pool.listener.loadbalancer.id)
-        driver.health_monitor.delete(health_monitor)
+    def delete_healthmonitor(self, context, healthmonitor):
+        healthmonitor = data_models.HealthMonitor.from_dict(healthmonitor)
+        driver = self._get_driver(healthmonitor.pool.listener.loadbalancer.id)
+        driver.healthmonitor.delete(healthmonitor)

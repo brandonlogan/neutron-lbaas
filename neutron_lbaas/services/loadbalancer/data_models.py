@@ -67,7 +67,7 @@ class BaseDataModel(object):
 
     @classmethod
     def from_dict(cls, model_dict):
-        raise NotImplementedError
+        return cls(**model_dict)
 
 
     @classmethod
@@ -119,6 +119,53 @@ class BaseDataModel(object):
 # or neutron services.  Instead of jumping through the hoops to create those
 # I've just defined them here.  If ever data_models or similar are defined
 # in those packages, those should be used instead of these.
+class AllocationPool(BaseDataModel):
+
+    def __init__(self, start=None, end=None):
+        self.start = start
+        self.end = end
+
+
+class HostRoute(BaseDataModel):
+
+    def __init__(self, destination=None, nexthop=None):
+        self.destination = destination
+        self.nexthop = nexthop
+
+
+class Subnet(BaseDataModel):
+
+    def __init__(self, id=None, name=None, tenant_id=None, network_id=None,
+                 ip_version=None, cidr=None, gateway_ip=None, enable_dhcp=None,
+                 ipv6_ra_mode=None, ipv6_address_mode=None, shared=None,
+                 dns_nameservers=None, host_routes=None,
+                 allocation_pools=None):
+        self.id = id
+        self.name = name
+        self.tenant_id = tenant_id
+        self.network_id = network_id
+        self.ip_version = ip_version
+        self.cidr = cidr
+        self.gateway_ip = gateway_ip
+        self.enable_dhcp = enable_dhcp
+        self.ipv6_ra_mode = ipv6_ra_mode
+        self.ipv6_address_mode = ipv6_address_mode
+        self.shared = shared
+        self.dns_nameservers = dns_nameservers
+        self.host_routes = host_routes
+        self.allocation_pools = allocation_pools
+
+    @classmethod
+    def from_dict(cls, model_dict):
+        host_routes = model_dict.pop('host_routes', [])
+        allocation_pools = model_dict.pop('allocation_pools', [])
+        model_dict['host_routes'] = [HostRoute.from_dict(route)
+                                     for route in host_routes]
+        model_dict['allocation_pools'] = [AllocationPool.from_dict(ap)
+                                          for ap in allocation_pools]
+        return Subnet(**model_dict)
+
+
 class IPAllocation(BaseDataModel):
 
     def __init__(self, port_id=None, ip_address=None, subnet_id=None,
@@ -130,7 +177,14 @@ class IPAllocation(BaseDataModel):
 
     @classmethod
     def from_dict(cls, model_dict):
-        return IPAllocation(**model_dict)
+        subnet = model_dict.pop('subnet', None)
+        # TODO(blogan): add subnet to __init__.  Can't do it yet because it
+        # causes issues with converting SA models into data models.
+        instance = IPAllocation(**model_dict)
+        setattr(instance, 'subnet', None)
+        if subnet:
+            setattr(instance, 'subnet', Subnet.from_dict(subnet))
+        return instance
 
 
 class Port(BaseDataModel):
@@ -165,7 +219,10 @@ class ProviderResourceAssociation(BaseDataModel):
 
     @classmethod
     def from_dict(cls, model_dict):
-        return ProviderResourceAssociation(**model_dict)
+        device_driver = model_dict.pop('device_driver', None)
+        instance = ProviderResourceAssociation(**model_dict)
+        setattr(instance, 'device_driver', device_driver)
+        return instance
 
 
 class SessionPersistence(BaseDataModel):
@@ -290,17 +347,17 @@ class Pool(BaseDataModel):
 
     @classmethod
     def from_dict(cls, model_dict):
-        health_monitor = model_dict.pop('health_monitor', None)
+        healthmonitor = model_dict.pop('healthmonitor', None)
         session_persistence = model_dict.pop('session_persistence', None)
-        listeners = model_dict.pop('listeners', [])
+        listener = model_dict.pop('listener', [])
         members = model_dict.pop('members', [])
-        model_dict['listeners'] = [Listener.from_dict(listener)
-                                   for listener in listeners]
         model_dict['members'] = [Member.from_dict(member)
                                  for member in members]
-        if health_monitor:
-            model_dict['health_monitor'] = HealthMonitor.from_dict(
-                health_monitor)
+        if listener:
+            model_dict['listener'] = Listener.from_dict(listener)
+        if healthmonitor:
+            model_dict['healthmonitor'] = HealthMonitor.from_dict(
+                healthmonitor)
         if session_persistence:
             model_dict['session_persistence'] = SessionPersistence.from_dict(
                 session_persistence)

@@ -22,12 +22,32 @@ from neutron_lbaas.services.loadbalancer.drivers import driver_mixins
 
 
 @six.add_metaclass(abc.ABCMeta)
-class AgentDeviceDriver(driver_base.LoadBalancerBaseDriver):
+class AgentDeviceDriver(object):
     """Abstract device driver that defines the API required by LBaaS agent."""
 
     def __init__(self, conf, plugin_rpc):
         self.conf = conf
         self.plugin_rpc = plugin_rpc
+
+    @abc.abstractproperty
+    def loadbalancer(self):
+        pass
+
+    @abc.abstractproperty
+    def listener(self):
+        pass
+
+    @abc.abstractproperty
+    def pool(self):
+        pass
+
+    @abc.abstractproperty
+    def member(self):
+        pass
+
+    @abc.abstractproperty
+    def healthmonitor(self):
+        pass
 
     @abc.abstractmethod
     def get_name(self):
@@ -49,37 +69,43 @@ class AgentDeviceDriver(driver_base.LoadBalancerBaseDriver):
         raise NotImplementedError()
 
 
-class BaseManagerMixin(driver_mixins.BaseManagerMixin):
+@six.add_metaclass(abc.ABCMeta)
+class BaseManager(object):
 
-    def db_delete_method(self):
-        # We do not need to use this method
-        raise NotImplementedError()
+    def __init__(self, driver):
+        self.driver = driver
 
-    def successful_completion(self, context, obj, delete=False):
-        # We do not need to use this method
-        raise NotImplementedError()
+    @abc.abstractmethod
+    def create(self, obj):
+        pass
 
-    def failed_completion(self, context, obj):
-        # We do not need to use this method
-        raise NotImplementedError()
+    @abc.abstractmethod
+    def update(self, old_obj, obj):
+        pass
+
+    @abc.abstractmethod
+    def delete(self, obj):
+        pass
 
 
-class BaseLoadBalancerManager(BaseManagerMixin, driver_mixins.BaseStatsMixin,
-                              driver_mixins.BaseRefreshMixin):
+class BaseLoadBalancerManager(BaseManager):
+
+    @abc.abstractmethod
+    def get_stats(self, loadbalancer_id):
+        pass
+
+
+class BaseListenerManager(BaseManager):
     pass
 
 
-class BaseListenerManager(BaseManagerMixin):
+class BasePoolManager(BaseManager):
     pass
 
 
-class BasePoolManager(BaseManagerMixin):
+class BaseMemberManager(BaseManager):
     pass
 
 
-class BaseMemberManager(BaseManagerMixin):
-    pass
-
-
-class BaseHealthMonitorManager(BaseManagerMixin):
+class BaseHealthMonitorManager(BaseManager):
     pass
