@@ -43,10 +43,13 @@ class LbaasAgentApi(object):
         return cctxt.call(self.context, 'loadbalancer_deployed',
                           loadbalancer_id=loadbalancer_id)
 
-    def update_status(self, obj_type, obj_id, status):
+    def update_status(self, obj_type, obj_id, provisioning_status=None,
+                      operating_status=None):
         cctxt = self.client.prepare()
         return cctxt.call(self.context, 'update_status', obj_type=obj_type,
-                          obj_id=obj_id, status=status)
+                          obj_id=obj_id,
+                          provisioning_status=provisioning_status,
+                          operating_status=operating_status)
 
     def loadbalancer_destroyed(self, loadbalancer_id):
         cctxt = self.client.prepare()

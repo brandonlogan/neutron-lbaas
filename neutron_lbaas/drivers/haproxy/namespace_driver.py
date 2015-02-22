@@ -19,7 +19,7 @@ import socket
 import netaddr
 from neutron.agent.common import config
 from neutron.agent.linux import ip_lib
-from neutron.agent.linux import utils
+from neutron.agent.linux import utils as linux_utils
 from neutron.common import exceptions
 from neutron.common import utils as n_utils
 from neutron.i18n import _LI, _LE, _LW
@@ -272,8 +272,7 @@ class HaproxyNSDriver(agent_device_driver.AgentDeviceDriver):
         confs_dir = os.path.abspath(os.path.normpath(self.state_path))
         conf_dir = os.path.join(confs_dir, loadbalancer_id)
         if ensure_state_dir:
-            if not os.path.isdir(conf_dir):
-                os.makedirs(conf_dir, 0o755)
+            linux_utils.ensure_dir(conf_dir)
         return os.path.join(conf_dir, kind)
 
     def _plug(self, namespace, port, reuse_existing=True):
@@ -461,7 +460,7 @@ def kill_pids_in_file(pid_path):
             for pid in pids:
                 pid = pid.strip()
                 try:
-                    utils.execute(['kill', '-9', pid])
+                    linux_utils.execute(['kill', '-9', pid])
                 except RuntimeError:
                     LOG.exception(
                         _LE('Unable to kill haproxy process: %s'),

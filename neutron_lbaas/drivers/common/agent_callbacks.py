@@ -114,7 +114,14 @@ class LoadBalancerCallbacks(object):
                                 (l.default_pool.healthmonitor
                                  .provisioning_status) = constants.ACTIVE
 
-    def update_status(self, context, obj_type, obj_id, status):
+    def update_status(self, context, obj_type, obj_id,
+                      provisioning_status=None, operating_status=None):
+        if not provisioning_status and not operating_status:
+            LOG.warning(_LW('update_status for %(obj_type)s %(obj_id)s called '
+                            'without specifying provisioning_status or '
+                            'operating_status') % {'obj_type': obj_type,
+                                                   'obj_id': obj_id})
+            return
         model_mapping = {
             'loadbalancer': db_models.LoadBalancer,
             'pool': db_models.PoolV2,
@@ -126,7 +133,9 @@ class LoadBalancerCallbacks(object):
             raise n_exc.Invalid(_('Unknown object type: %s') % obj_type)
         try:
             self.plugin.db.update_status(
-                context, model_mapping[obj_type], obj_id, status)
+                context, model_mapping[obj_type], obj_id,
+                provisioning_status=provisioning_status,
+                operating_status=operating_status)
         except n_exc.NotFound:
             # update_status may come from agent on an object which was
             # already deleted from db with other request
